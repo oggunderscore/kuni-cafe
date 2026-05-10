@@ -65,6 +65,11 @@ export interface OrderItem {
 	quantity: number;
 	price: number; // unit price
 	category: 'drink' | 'addon' | 'dessert' | 'party-dessert';
+	customizations?: {
+		addOns: string[];
+		iceLevel: string;
+		sugarLevel: string;
+	};
 }
 
 // Order form submission payload
@@ -72,7 +77,7 @@ export interface OrderSubmission {
 	firstName: string;
 	lastName: string;
 	phone: string;
-	items: { menuItemId: string; quantity: number }[];
+	items: { menuItemId: string; quantity: number; customizations?: { addOns: string[]; iceLevel: string; sugarLevel: string } }[];
 	timeSlot: string; // time slot ID
 	comments?: string;
 }

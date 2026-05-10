@@ -1,6 +1,6 @@
 <script lang="ts">
 	import TimeSlotPicker from '$lib/components/TimeSlotPicker.svelte';
-	import OrderItemSelector from '$lib/components/OrderItemSelector.svelte';
+	import OrderItemSelector, { type CartItem } from '$lib/components/OrderItemSelector.svelte';
 	import OrderConfirmation from '$lib/components/OrderConfirmation.svelte';
 	import { drinks, addOns, desserts, partySizedDesserts } from '$lib/data/menu';
 	import { validateOrderSubmission } from '$lib/validation';
@@ -27,13 +27,15 @@
 
 	// Inline validation
 	let phoneError = $state('');
+	let firstNameError = $state('');
+	let lastNameError = $state('');
 
 	// Form state
 	let firstName = $state('');
 	let lastName = $state('');
 	let phone = $state('');
 	let comments = $state('');
-	let selectedItems = $state(new Map<string, number>());
+	let cartItems = $state<CartItem[]>([]);
 	let selectedSlotId = $state('');
 	let errors = $state<string[]>([]);
 	let submitting = $state(false);
@@ -43,7 +45,7 @@
 		firstName: string;
 		lastName: string;
 		shortId: string;
-		items: Array<{ name: string; quantity: number; price: number }>;
+		items: Array<{ name: string; quantity: number; price: number; customizations?: { addOns: string[]; iceLevel: string; sugarLevel: string } }>;
 		totalPrice: number;
 		timeSlot: { date: string; time: string };
 	} | null>(null);
@@ -90,10 +92,7 @@
 
 	// Detect if any party-sized dessert is selected
 	let hasPartyDessert = $derived(() => {
-		for (const [itemId, qty] of selectedItems) {
-			if (qty > 0 && partySizedIds.has(itemId)) return true;
-		}
-		return false;
+		return cartItems.some((item) => partySizedIds.has(item.menuItemId));
 	});
 
 	// Generate time slots client-side and filter based on party dessert selection and blocked dates
@@ -117,27 +116,47 @@
 		}
 	});
 
-	function validatePhone(value: string) {
-		if (!value.trim()) {
-			phoneError = '';
-			return;
-		}
+	function formatPhoneNumber(value: string): string {
 		const digits = value.replace(/[^\d]/g, '');
-		if (digits.length === 10 || (digits.length === 11 && digits.startsWith('1'))) {
+		if (digits.length <= 3) return digits;
+		if (digits.length <= 6) return `(${digits.slice(0, 3)}) ${digits.slice(3)}`;
+		return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6, 10)}`;
+	}
+
+	function handlePhoneInput() {
+		const digits = phone.replace(/[^\d]/g, '');
+		phone = formatPhoneNumber(digits);
+
+		if (!digits) {
+			phoneError = '';
+		} else if (digits.length === 10) {
+			phoneError = '';
+		} else if (digits.length > 10) {
+			phone = formatPhoneNumber(digits.slice(0, 10));
 			phoneError = '';
 		} else {
 			phoneError = 'Please enter a valid 10-digit phone number';
 		}
 	}
 
-	function handleItemUpdate(itemId: string, quantity: number) {
-		const newMap = new Map(selectedItems);
-		if (quantity <= 0) {
-			newMap.delete(itemId);
+	function validateFirstName() {
+		if (firstName.trim() === '' && firstName.length > 0) {
+			firstNameError = 'First name is required';
 		} else {
-			newMap.set(itemId, quantity);
+			firstNameError = '';
 		}
-		selectedItems = newMap;
+	}
+
+	function validateLastName() {
+		if (lastName.trim() === '' && lastName.length > 0) {
+			lastNameError = 'Last name is required';
+		} else {
+			lastNameError = '';
+		}
+	}
+
+	function handleCartUpdate(newItems: CartItem[]) {
+		cartItems = newItems;
 	}
 
 	function handleSlotSelect(slotId: string) {
@@ -154,19 +173,18 @@
 		// Re-check availability before reviewing
 		await fetchAvailability();
 
-		// Build items array for submission
-		const items = Array.from(selectedItems.entries())
-			.filter(([, qty]) => qty > 0)
-			.map(([menuItemId, quantity]) => ({ menuItemId, quantity }));
+		// Build items array for submission from cart
+		const items = cartItems.map((c) => ({ menuItemId: c.menuItemId, quantity: c.quantity }));
+
+		if (items.length === 0) {
+			errors = ['At least one item is required'];
+			return;
+		}
 
 		// Check if any selected items are now unavailable
-		const nowUnavailable = items.filter((item) => unavailableIds.has(item.menuItemId));
+		const nowUnavailable = cartItems.filter((item) => unavailableIds.has(item.menuItemId));
 		if (nowUnavailable.length > 0) {
-			const names = nowUnavailable.map((item) => {
-				const menuItem = allMenuItems.find((m) => m.id === item.menuItemId);
-				return menuItem?.name ?? item.menuItemId;
-			});
-			errors = names.map((name) => `"${name}" is no longer available. Please remove it from your order.`);
+			errors = nowUnavailable.map((item) => `"${item.name}" is no longer available. Please remove it from your order.`);
 			return;
 		}
 
@@ -187,6 +205,14 @@
 		const result = validateOrderSubmission(submission, slotDate);
 		if (!result.valid) {
 			errors = result.errors;
+			// Set inline errors for name fields
+			if (!firstName.trim()) firstNameError = 'First name is required';
+			if (!lastName.trim()) lastNameError = 'Last name is required';
+			// Scroll to top to show errors
+			setTimeout(() => {
+				const errorEl = document.querySelector('.error-container') || document.querySelector('.field-error');
+				errorEl?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+			}, 50);
 			return;
 		}
 
@@ -200,20 +226,16 @@
 
 	// Build review data
 	let reviewItems = $derived(() => {
-		return Array.from(selectedItems.entries())
-			.filter(([, qty]) => qty > 0)
-			.map(([itemId, quantity]) => {
-				const menuItem = allMenuItems.find((m) => m.id === itemId);
-				return {
-					name: menuItem?.name ?? itemId,
-					quantity,
-					price: menuItem?.price ?? 0
-				};
-			});
+		return cartItems.map((item) => ({
+			name: item.name,
+			quantity: item.quantity,
+			price: item.price,
+			customizations: item.customizations
+		}));
 	});
 
 	let reviewTotal = $derived(() => {
-		return reviewItems().reduce((sum, item) => sum + item.price * item.quantity, 0);
+		return cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
 	});
 
 	function formatReviewDate(dateStr: string): string {
@@ -232,9 +254,11 @@
 		errors = [];
 		submitting = true;
 
-		const items = Array.from(selectedItems.entries())
-			.filter(([, qty]) => qty > 0)
-			.map(([menuItemId, quantity]) => ({ menuItemId, quantity }));
+		const items = cartItems.map((c) => ({
+			menuItemId: c.menuItemId,
+			quantity: c.quantity,
+			customizations: c.customizations
+		}));
 
 		const submission: OrderSubmission = {
 			firstName: firstName.trim(),
@@ -257,15 +281,12 @@
 			if (response.ok) {
 				const data = await response.json();
 
-				const summaryItems = reviewItems();
-				const totalPrice = reviewTotal();
-
 				orderSummary = {
 					firstName: firstName.trim(),
 					lastName: lastName.trim(),
 					shortId: data.shortId,
-					items: summaryItems,
-					totalPrice,
+					items: reviewItems(),
+					totalPrice: reviewTotal(),
 					timeSlot: {
 						date: slot!.date,
 						time: slot!.time
@@ -342,9 +363,20 @@
 				<ul class="review-items-list">
 					{#each reviewItems() as item}
 						<li class="review-item">
-							<span>{item.name} × {item.quantity}</span>
+							<span>{item.name} x {item.quantity}</span>
 							<span class="review-item-price">${(item.price * item.quantity).toFixed(2)}</span>
 						</li>
+						{#if item.customizations}
+							<li class="review-sub-item">
+								{item.customizations.iceLevel}, {item.customizations.sugarLevel} sugar
+								{#if item.customizations.addOns.length > 0}
+									+ {item.customizations.addOns.map((id) => {
+										const a = addOns.find((ao) => ao.id === id);
+										return a?.name ?? id;
+									}).join(', ')}
+								{/if}
+							</li>
+						{/if}
 					{/each}
 				</ul>
 			</div>
@@ -410,11 +442,17 @@
 						id="first-name"
 						type="text"
 						class="form-input"
+						class:input-error={firstNameError !== ''}
 						bind:value={firstName}
+						onblur={validateFirstName}
 						placeholder="First name"
 						required
 						aria-required="true"
+						aria-describedby={firstNameError ? 'first-name-error' : undefined}
 					/>
+					{#if firstNameError}
+						<span id="first-name-error" class="field-error">{firstNameError}</span>
+					{/if}
 				</div>
 
 				<div class="form-field">
@@ -423,11 +461,17 @@
 						id="last-name"
 						type="text"
 						class="form-input"
+						class:input-error={lastNameError !== ''}
 						bind:value={lastName}
+						onblur={validateLastName}
 						placeholder="Last name"
 						required
 						aria-required="true"
+						aria-describedby={lastNameError ? 'last-name-error' : undefined}
 					/>
+					{#if lastNameError}
+						<span id="last-name-error" class="field-error">{lastNameError}</span>
+					{/if}
 				</div>
 
 				<div class="form-field">
@@ -438,8 +482,8 @@
 						class="form-input"
 						class:input-error={phoneError !== ''}
 						bind:value={phone}
-						oninput={() => validatePhone(phone)}
-						placeholder="555-123-4567"
+						oninput={handlePhoneInput}
+						placeholder="(555) 123-4567"
 						required
 						aria-required="true"
 						aria-describedby={phoneError ? 'phone-error' : undefined}
@@ -455,8 +499,8 @@
 				<h2 class="section-title">Select Items</h2>
 				<OrderItemSelector
 					items={availableMenuItems}
-					{selectedItems}
-					onUpdate={handleItemUpdate}
+					{cartItems}
+					onCartUpdate={handleCartUpdate}
 				/>
 			</section>
 
@@ -767,6 +811,14 @@
 		font-weight: 600;
 		color: #2d570f;
 		white-space: nowrap;
+	}
+
+	.review-sub-item {
+		font-size: 0.8125rem;
+		color: #6b7280;
+		font-style: italic;
+		padding: 0 0 0.375rem 1rem;
+		list-style: none;
 	}
 
 	.review-total {

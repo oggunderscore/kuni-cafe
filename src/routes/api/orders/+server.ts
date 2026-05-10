@@ -110,7 +110,8 @@ export const POST: RequestHandler = async ({ request }) => {
 				name: menuItem.name,
 				quantity: item.quantity,
 				price: menuItem.price,
-				category: menuItem.category
+				category: menuItem.category,
+				...(item.customizations ? { customizations: item.customizations } : {})
 			});
 		}
 

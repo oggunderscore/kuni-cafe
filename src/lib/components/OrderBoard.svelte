@@ -45,6 +45,8 @@
 		const grouped = new Map<string, Order[]>();
 
 		for (const order of orders) {
+			// Skip delivered orders — they go to history
+			if (order.status === 'Delivered') continue;
 			const slot = order.timeSlot;
 			if (!grouped.has(slot)) {
 				grouped.set(slot, []);
@@ -108,6 +110,27 @@
 			}
 		} catch (e) {
 			console.error('Failed to advance status:', e);
+		}
+	}
+
+	async function setStatus(orderId: string, newStatus: string) {
+		try {
+			const response = await fetch('/api/admin/orders', {
+				method: 'PUT',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ orderId, action: 'setStatus', status: newStatus })
+			});
+
+			if (response.ok) {
+				slotGroups = slotGroups.map((group) => ({
+					...group,
+					items: group.items.map((o) =>
+						o.id === orderId ? { ...o, status: newStatus as Order['status'] } : o
+					)
+				}));
+			}
+		} catch (e) {
+			console.error('Failed to set status:', e);
 		}
 	}
 
@@ -197,7 +220,15 @@
 
 							<ul class="order-items">
 								{#each order.items as item}
-									<li>{item.quantity}× {item.name}</li>
+									<li>{item.quantity}x {item.name}</li>
+									{#if item.customizations}
+										<li class="item-customization">
+											{item.customizations.iceLevel}, {item.customizations.sugarLevel} sugar
+											{#if item.customizations.addOns && item.customizations.addOns.length > 0}
+												+ {item.customizations.addOns.join(', ')}
+											{/if}
+										</li>
+									{/if}
 								{/each}
 							</ul>
 
@@ -216,6 +247,16 @@
 									Mark as {getNextStatus(order.status)}
 								</button>
 							{/if}
+
+							<select
+								class="status-dropdown"
+								value={order.status}
+								onchange={(e) => setStatus(order.id, e.currentTarget.value)}
+							>
+								{#each STATUS_SEQUENCE as status}
+									<option value={status}>{status}</option>
+								{/each}
+							</select>
 						</div>
 					{/each}
 				</div>
@@ -360,6 +401,13 @@
 		padding: 0.125rem 0;
 	}
 
+	.item-customization {
+		font-size: 0.75rem;
+		color: #6b7280;
+		font-style: italic;
+		padding-left: 1rem;
+	}
+
 	.order-comments {
 		font-size: 0.8125rem;
 		color: #6b7280;
@@ -396,6 +444,25 @@
 	.status-btn:focus-visible {
 		outline: 2px solid #2d570f;
 		outline-offset: 2px;
+	}
+
+	.status-dropdown {
+		width: 100%;
+		margin-top: 0.375rem;
+		padding: 0.375rem 0.5rem;
+		border: 1.5px solid #d1d5db;
+		border-radius: 0.375rem;
+		font-size: 0.75rem;
+		font-weight: 500;
+		color: #374151;
+		background: #ffffff;
+		cursor: pointer;
+		min-height: 32px;
+	}
+
+	.status-dropdown:focus {
+		outline: none;
+		border-color: #1a3f08;
 	}
 
 	@media (min-width: 768px) {

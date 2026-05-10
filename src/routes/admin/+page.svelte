@@ -1,13 +1,14 @@
 <script lang="ts">
 	import AdminLogin from '$lib/components/AdminLogin.svelte';
 	import OrderBoard from '$lib/components/OrderBoard.svelte';
+	import OrderHistory from '$lib/components/OrderHistory.svelte';
 	import Analytics from '$lib/components/Analytics.svelte';
 	import MenuManager from '$lib/components/MenuManager.svelte';
 	import SiteSettings from '$lib/components/SiteSettings.svelte';
 
 	let { data } = $props();
 	let isAuthenticated = $state(data.authenticated);
-	let activeTab = $state<'orders' | 'menu' | 'analytics' | 'settings'>('orders');
+	let activeTab = $state<'orders' | 'history' | 'menu' | 'analytics' | 'settings'>('orders');
 
 	function handleLogin() {
 		isAuthenticated = true;
@@ -43,6 +44,14 @@
 			</button>
 			<button
 				class="tab-btn"
+				class:active={activeTab === 'history'}
+				onclick={() => activeTab = 'history'}
+				aria-pressed={activeTab === 'history'}
+			>
+				History
+			</button>
+			<button
+				class="tab-btn"
 				class:active={activeTab === 'menu'}
 				onclick={() => activeTab = 'menu'}
 				aria-pressed={activeTab === 'menu'}
@@ -70,6 +79,8 @@
 		<div class="dashboard-content">
 			{#if activeTab === 'orders'}
 				<OrderBoard />
+			{:else if activeTab === 'history'}
+				<OrderHistory />
 			{:else if activeTab === 'menu'}
 				<MenuManager />
 			{:else if activeTab === 'analytics'}

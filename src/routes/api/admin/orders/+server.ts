@@ -70,6 +70,9 @@ export const PUT: RequestHandler = async ({ request }) => {
 
 		if (action === 'updateStatus') {
 			return await handleStatusUpdate(orderId);
+		} else if (action === 'setStatus') {
+			const { status } = body;
+			return await handleSetStatus(orderId, status);
 		} else if (action === 'reorder') {
 			const { sortOrder, timeSlot } = body;
 			return await handleReorder(orderId, sortOrder, timeSlot);
@@ -137,6 +140,28 @@ async function handleReorder(
 	}
 
 	await orderRef.update(updateData);
+
+	return json({ success: true });
+}
+
+const VALID_STATUSES = ['Unpaid', 'Paid', 'Making', 'Made', 'Delivered'];
+
+async function handleSetStatus(orderId: string, status: string): Promise<Response> {
+	if (!status || !VALID_STATUSES.includes(status)) {
+		return json(
+			{ error: 'validation_error', message: `Invalid status. Must be one of: ${VALID_STATUSES.join(', ')}` },
+			{ status: 400 }
+		);
+	}
+
+	const orderRef = adminDb.collection('orders').doc(orderId);
+	const orderSnap = await orderRef.get();
+
+	if (!orderSnap.exists) {
+		return json({ error: 'not_found', message: 'Order not found' }, { status: 404 });
+	}
+
+	await orderRef.update({ status });
 
 	return json({ success: true });
 }
