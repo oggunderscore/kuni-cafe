@@ -37,41 +37,38 @@
 <style>
 	.navbar {
 		width: 100%;
-		padding: 0.5rem 1rem;
+		padding: 0.5rem 0;
+		overflow: hidden;
 	}
 
 	.nav-list {
 		display: flex;
 		justify-content: center;
 		align-items: center;
-		gap: 0.5rem;
+		gap: 0.25rem;
 		list-style: none;
 		margin: 0;
 		padding: 0;
+		flex-wrap: wrap;
 	}
 
 	.nav-link {
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		min-width: 44px;
-		min-height: 44px;
-		padding: 0.625rem 1.25rem;
-		border-radius: 0.5rem;
+		min-height: 40px;
+		padding: 0.5rem 0.75rem;
+		border-radius: 0.375rem;
 		text-decoration: none;
-		font-size: 1rem;
+		font-size: 0.875rem;
 		font-weight: 500;
 		color: #1a3f08;
-		transition: background-color 0.25s ease, color 0.25s ease, transform 0.2s ease;
+		transition: background-color 0.2s ease, color 0.2s ease;
+		white-space: nowrap;
 	}
 
 	.nav-link:hover {
 		background-color: rgba(26, 63, 8, 0.1);
-		transform: translateY(-1px);
-	}
-
-	.nav-link:active {
-		transform: translateY(0);
 	}
 
 	.nav-link:focus-visible {
@@ -87,11 +84,13 @@
 
 	@media (min-width: 480px) {
 		.nav-list {
-			gap: 1rem;
+			gap: 0.5rem;
 		}
 
 		.nav-link {
-			padding: 0.625rem 1.5rem;
+			padding: 0.625rem 1.25rem;
+			font-size: 1rem;
+			min-height: 44px;
 		}
 	}
 </style>

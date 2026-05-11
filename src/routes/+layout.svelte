@@ -41,6 +41,7 @@
 		font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
 		color: #030500;
 		min-height: 100vh;
+		overflow-x: hidden;
 	}
 
 	/* Global smooth animations */
@@ -60,6 +61,8 @@
 		display: flex;
 		flex-direction: column;
 		align-items: center;
+		overflow-x: hidden;
+		width: 100%;
 	}
 
 	.header {
